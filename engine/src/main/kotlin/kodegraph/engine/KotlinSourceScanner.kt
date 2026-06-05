@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.psi.KtSuperTypeCallEntry
 import java.io.File
 
 class KotlinSourceScanner {
-
+//TODO : parse imports from files
     fun scan(sourceRoots: List<File>): KGraph {
         return KotlinEnvironmentFactory.create().use { managed ->
             val psiFactory = KtPsiFactory(managed.coreEnvironment.project, false)
