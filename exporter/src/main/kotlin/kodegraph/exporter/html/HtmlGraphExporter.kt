@@ -88,7 +88,7 @@ class HtmlGraphExporter : GraphExporter {
       --border-color: #313244;
       --primary: #cba6f7;
       --primary-hover: #b4befe;
-      
+
       --color-class: #89b4fa;
       --color-data: #a6e3a1;
       --color-interface: #cba6f7;
@@ -212,6 +212,18 @@ class HtmlGraphExporter : GraphExporter {
       width: 8px;
       height: 8px;
       border-radius: 50%;
+    }
+
+    .type-mini-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      background-color: var(--bg-dark);
     }
 
     /* Details Panel */
@@ -392,40 +404,48 @@ class HtmlGraphExporter : GraphExporter {
         </div>
       </div>
 
-      <!-- Filters -->
+      <!-- Class Type Filters -->
       <div>
         <div class="section-title">Class Types</div>
-        <div class="filter-group">
+        <div class="filter-group" id="type-filters">
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="CLASS">
-            <span class="badge-dot" style="background-color: var(--color-class)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-class); color: var(--color-class)">C</span>
             Class
           </label>
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="DATA">
-            <span class="badge-dot" style="background-color: var(--color-data)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-data); color: var(--color-data)">D</span>
             Data Class
           </label>
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="INTERFACE">
-            <span class="badge-dot" style="background-color: var(--color-interface)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-interface); color: var(--color-interface)">I</span>
             Interface
           </label>
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="ENUM">
-            <span class="badge-dot" style="background-color: var(--color-enum)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-enum); color: var(--color-enum)">E</span>
             Enum
           </label>
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="ANNOTATION">
-            <span class="badge-dot" style="background-color: var(--color-annotation)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-annotation); color: var(--color-annotation)">A</span>
             Annotation
           </label>
           <label class="checkbox-label">
             <input type="checkbox" checked data-type="BROADCAST">
-            <span class="badge-dot" style="background-color: var(--color-broadcast)"></span>
+            <span class="type-mini-badge" style="border: 1px solid var(--color-broadcast); color: var(--color-broadcast)">B</span>
             Broadcast Receiver
           </label>
+        </div>
+      </div>
+
+      <!-- Packages Legend & Filter -->
+      <div>
+        <div class="section-title">Packages</div>
+        <div class="filter-group" id="package-legend" style="max-height: 220px; overflow-y: auto; padding-right: 4px;">
+          <!-- Dynamically generated -->
         </div>
       </div>
 
@@ -441,7 +461,7 @@ class HtmlGraphExporter : GraphExporter {
             <div class="class-package" id="det-package">com.example.package</div>
             <span class="class-type-badge" id="det-type">class</span>
           </div>
-          
+
           <div class="meta-list">
             <div class="meta-item" id="det-interfaces-container">
               <div class="meta-label">Implements</div>
@@ -464,7 +484,7 @@ class HtmlGraphExporter : GraphExporter {
   <!-- Network Canvas -->
   <main>
     <div id="network-container"></div>
-    
+
     <div class="floating-hud">
       <div id="stats-label">Nodes: 0 | Edges: 0</div>
       <button class="btn btn-secondary" onclick="resetFocus()">Reset Focus</button>
@@ -473,7 +493,7 @@ class HtmlGraphExporter : GraphExporter {
   </main>
 
   <script>
-    // Injected Data
+    // ─── Injected Data ───────────────────────────────────────────
     const rawNodes = [
 $nodesJson
     ];
@@ -482,37 +502,58 @@ $nodesJson
 $edgesJson
     ];
 
-    // Colors mapping
+    // ─── Package Color Palette ───────────────────────────────────
+    const PACKAGE_PALETTE = [
+      '#89b4fa', '#a6e3a1', '#cba6f7', '#fab387',
+      '#f38ba8', '#f9e2af', '#89dceb', '#94e2d5',
+      '#eba0ac', '#b4befe', '#f5c2e7', '#74c7ec'
+    ];
+
+    // ─── Derive unique packages & assign colors ──────────────────
+    const ANCHOR_PREFIX = '__pkg_anchor__';
+    const packageColorMap = {};
+    const uniquePackages = Array.from(
+      new Set(rawNodes.map(n => n.packageName || '<default>'))
+    ).sort();
+
+    uniquePackages.forEach((pkg, i) => {
+      packageColorMap[pkg] = PACKAGE_PALETTE[i % PACKAGE_PALETTE.length];
+    });
+
+    // ─── Type theme (for node border by class type) ──────────────
     const typeThemes = {
-      'CLASS': { color: { border: '#89b4fa', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
-      'DATA': { color: { border: '#a6e3a1', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
-      'INTERFACE': { color: { border: '#cba6f7', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
-      'ENUM': { color: { border: '#fab387', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
+      'CLASS':      { color: { border: '#89b4fa', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
+      'DATA':       { color: { border: '#a6e3a1', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
+      'INTERFACE':  { color: { border: '#cba6f7', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
+      'ENUM':       { color: { border: '#fab387', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
       'ANNOTATION': { color: { border: '#f38ba8', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } },
-      'BROADCAST': { color: { border: '#f9e2af', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } }
+      'BROADCAST':  { color: { border: '#f9e2af', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } }
     };
 
-    // Prepare vis nodes and edges
+    // ─── State ───────────────────────────────────────────────────
     let nodesDataset = new vis.DataSet();
     let edgesDataset = new vis.DataSet();
     let network = null;
+    let selectedNodeId = null;
 
     let activeFilters = {
       search: '',
-      types: new Set(['CLASS', 'DATA', 'INTERFACE', 'ENUM', 'ANNOTATION', 'BROADCAST'])
+      types: new Set(['CLASS', 'DATA', 'INTERFACE', 'ENUM', 'ANNOTATION', 'BROADCAST']),
+      packages: new Set(uniquePackages)
     };
 
-    let selectedNodeId = null;
+    // Helper: is this an anchor node id?
+    function isAnchor(id) {
+      return typeof id === 'string' && id.startsWith(ANCHOR_PREFIX);
+    }
 
+    // ─── Init ────────────────────────────────────────────────────
     function init() {
+      renderPackageLegend();
       renderData();
 
-      // Configure Vis network
       const container = document.getElementById('network-container');
-      const data = {
-        nodes: nodesDataset,
-        edges: edgesDataset
-      };
+      const data = { nodes: nodesDataset, edges: edgesDataset };
 
       const options = {
         nodes: {
@@ -523,35 +564,22 @@ $edgesJson
           shadow: true
         },
         edges: {
-          arrows: {
-            to: { enabled: true, scaleFactor: 0.8 }
-          },
-          smooth: {
-            type: 'cubicBezier',
-            forceDirection: 'none',
-            roundness: 0.3
-          },
-          color: {
-            color: '#585b70',
-            highlight: '#cba6f7',
-            hover: '#a6adc8',
-            opacity: 0.8
-          },
+          arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+          smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.3 },
+          color: { color: '#585b70', highlight: '#cba6f7', hover: '#a6adc8', opacity: 0.8 },
           width: 1.5
         },
         physics: {
           solver: 'forceAtlas2Based',
           forceAtlas2Based: {
-            gravitationalConstant: -70,
-            centralGravity: 0.015,
-            springLength: 120,
-            springConstant: 0.08,
-            damping: 0.4
+            gravitationalConstant: -80,
+            centralGravity: 0.008,
+            springLength: 160,
+            springConstant: 0.06,
+            damping: 0.45,
+            avoidOverlap: 0.3
           },
-          stabilization: {
-            iterations: 120,
-            fit: true
-          }
+          stabilization: { iterations: 250, fit: true }
         },
         interaction: {
           hover: true,
@@ -562,114 +590,233 @@ $edgesJson
 
       network = new vis.Network(container, data, options);
 
-      // Event listeners
+      // Click: ignore anchor nodes
       network.on('click', function(params) {
         if (params.nodes.length > 0) {
-          selectNode(params.nodes[0]);
+          const clicked = params.nodes[0];
+          if (isAnchor(clicked)) return; // ignore anchor clicks
+          selectNode(clicked);
         } else {
           deselectNode();
         }
       });
 
-      // Filter events
+      // Search
       document.getElementById('class-search').addEventListener('input', function(e) {
         activeFilters.search = e.target.value.toLowerCase().trim();
         renderData();
       });
 
-      const typeCheckboxes = document.querySelectorAll('.filter-group input');
-      typeCheckboxes.forEach(cb => {
+      // Type filter checkboxes
+      document.querySelectorAll('#type-filters input[data-type]').forEach(cb => {
         cb.addEventListener('change', function(e) {
           const type = e.target.getAttribute('data-type');
-          if (e.target.checked) {
-            activeFilters.types.add(type);
-          } else {
-            activeFilters.types.delete(type);
-          }
+          if (e.target.checked) activeFilters.types.add(type);
+          else activeFilters.types.delete(type);
           renderData();
         });
       });
     }
 
+    // ─── Package Legend ──────────────────────────────────────────
+    function renderPackageLegend() {
+      const container = document.getElementById('package-legend');
+      container.innerHTML = '';
+
+      uniquePackages.forEach(pkg => {
+        const color = packageColorMap[pkg];
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = activeFilters.packages.has(pkg);
+        cb.addEventListener('change', function(e) {
+          if (e.target.checked) activeFilters.packages.add(pkg);
+          else activeFilters.packages.delete(pkg);
+          renderData();
+        });
+
+        const dot = document.createElement('span');
+        dot.className = 'badge-dot';
+        dot.style.backgroundColor = color;
+
+        const text = document.createElement('span');
+        text.style.fontSize = '13px';
+        text.style.overflow = 'hidden';
+        text.style.textOverflow = 'ellipsis';
+        text.style.whiteSpace = 'nowrap';
+        text.innerText = pkg;
+
+        label.appendChild(cb);
+        label.appendChild(dot);
+        label.appendChild(text);
+        container.appendChild(label);
+      });
+    }
+
+    // ─── Render Data (with anchor nodes) ─────────────────────────
     function renderData() {
-      // Find matches
+      // 1. Filter class nodes
       const filteredNodes = rawNodes.filter(node => {
         const matchesType = activeFilters.types.has(node.type);
-        const matchesSearch = node.label.toLowerCase().includes(activeFilters.search) || 
+        const matchesPkg  = activeFilters.packages.has(node.packageName || '<default>');
+        const matchesSearch = node.label.toLowerCase().includes(activeFilters.search) ||
                               node.id.toLowerCase().includes(activeFilters.search);
-        return matchesType && matchesSearch;
+        return matchesType && matchesPkg && matchesSearch;
       });
 
       const filteredIds = new Set(filteredNodes.map(n => n.id));
 
-      const filteredEdges = rawEdges.filter(edge => {
-        return filteredIds.has(edge.from) && filteredIds.has(edge.to);
+      // 2. Filter real edges
+      const filteredEdges = rawEdges.filter(e => filteredIds.has(e.from) && filteredIds.has(e.to));
+
+      // 3. Compute which packages are active (have at least one visible class)
+      const activePackages = new Set();
+      filteredNodes.forEach(n => activePackages.add(n.packageName || '<default>'));
+
+      // 4. Build anchor nodes (one per active package, pre-positioned on a circle)
+      const anchorNodes = [];
+      const anchorEdges = [];
+      const pkgArray = Array.from(activePackages).sort();
+      const radius = Math.max(350, pkgArray.length * 90);
+
+      pkgArray.forEach((pkg, i) => {
+        const anchorId = ANCHOR_PREFIX + pkg;
+        const angle = (2 * Math.PI * i) / pkgArray.length;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        const color = packageColorMap[pkg] || '#585b70';
+
+        // Semi-visible label anchor: faint package name floating as center of gravity
+        const shortLabel = pkg.split('.').pop() || pkg;
+        anchorNodes.push({
+          id: anchorId,
+          label: shortLabel,
+          x: x,
+          y: y,
+          shape: 'text',
+          font: { color: color, size: 22, face: 'Outfit', strokeWidth: 0, vadjust: 0, bold: { color: color } },
+          mass: 40,
+          fixed: true,
+          physics: true,
+          opacity: 0.2,
+          // No border, no background, no shadow — just floating text
+          color: { border: 'transparent', background: 'transparent', highlight: { border: 'transparent', background: 'transparent' } },
+          shadow: false,
+          chosen: false,
+          // Mark as anchor
+          isAnchor: true
+        });
       });
 
-      // Update Dataset
+      // 5. Build class nodes with package-colored border
       const formattedNodes = filteredNodes.map(node => {
+        const pkg = node.packageName || '<default>';
+        const pkgColor = packageColorMap[pkg] || '#89b4fa';
         const theme = typeThemes[node.type] || typeThemes['CLASS'];
+
+        // Subtle background tint per class type
+        let bg = '#1e1e2e';
+        if (node.type === 'DATA')       bg = '#1e2821';
+        else if (node.type === 'INTERFACE')  bg = '#251e2a';
+        else if (node.type === 'ENUM')       bg = '#28221c';
+        else if (node.type === 'ANNOTATION') bg = '#2a1e20';
+        else if (node.type === 'BROADCAST')  bg = '#28251b';
+
+        // Type prefix in label
+        let prefix = '';
+        if (node.type === 'INTERFACE')  prefix = '\u00abI\u00bb ';
+        else if (node.type === 'ENUM')       prefix = '\u00abE\u00bb ';
+        else if (node.type === 'ANNOTATION') prefix = '\u00abA\u00bb ';
+        else if (node.type === 'DATA')       prefix = '\u00abD\u00bb ';
+        else if (node.type === 'BROADCAST')  prefix = '\u00abB\u00bb ';
+
         return {
           id: node.id,
-          label: node.label,
+          label: prefix + node.label,
           packageName: node.packageName,
           type: node.type,
           implementedInterfaces: node.implementedInterfaces,
-          color: theme.color
+          color: {
+            border: pkgColor,
+            background: bg,
+            highlight: { border: '#b4befe', background: '#313244' }
+          },
+          isAnchor: false
         };
       });
 
-      const formattedEdges = filteredEdges.map(edge => {
-        return {
-          id: edge.from + '->' + edge.to,
-          from: edge.from,
-          to: edge.to,
-          dashes: edge.type === 'implements'
-        };
+      // 6. Build invisible spring edges: class → its package anchor
+      filteredNodes.forEach(node => {
+        const pkg = node.packageName || '<default>';
+        const anchorId = ANCHOR_PREFIX + pkg;
+        if (activePackages.has(pkg)) {
+          anchorEdges.push({
+            id: '__spring__' + node.id,
+            from: node.id,
+            to: anchorId,
+            // Invisible rigid spring
+            hidden: true,
+            physics: true,
+            length: 80,
+            // Override spring to be very rigid
+            smooth: false
+          });
+        }
       });
 
+      // 7. Format real dependency edges (weaker springs, visible)
+      const formattedEdges = filteredEdges.map(edge => ({
+        id: edge.from + '->' + edge.to,
+        from: edge.from,
+        to: edge.to,
+        dashes: edge.type === 'implements',
+        length: 280
+      }));
+
+      // 8. Merge and apply
       nodesDataset.clear();
+      nodesDataset.add(anchorNodes);
       nodesDataset.add(formattedNodes);
 
       edgesDataset.clear();
+      edgesDataset.add(anchorEdges);
       edgesDataset.add(formattedEdges);
 
-      document.getElementById('stats-label').innerText = 'Nodes: ' + formattedNodes.length + ' | Edges: ' + formattedEdges.length;
+      document.getElementById('stats-label').innerText =
+        'Nodes: ' + formattedNodes.length + ' | Edges: ' + formattedEdges.length;
 
       if (selectedNodeId && !filteredIds.has(selectedNodeId)) {
         deselectNode();
       }
     }
 
+    // ─── Select Node ─────────────────────────────────────────────
     function selectNode(nodeId) {
+      if (isAnchor(nodeId)) return;
       selectedNodeId = nodeId;
       const node = rawNodes.find(n => n.id === nodeId);
       if (!node) return;
 
-      // Update sidebar card
       document.getElementById('no-selection-msg').style.display = 'none';
       const card = document.getElementById('details-card');
       card.style.display = 'flex';
 
       document.getElementById('det-name').innerText = node.label;
       document.getElementById('det-package').innerText = node.packageName || '<default package>';
-      
+
       const typeBadge = document.getElementById('det-type');
       typeBadge.innerText = node.type.replace('_', ' ');
-      
-      // Dynamic badge style
       const colors = {
-        'CLASS': 'var(--color-class)',
-        'DATA': 'var(--color-data)',
-        'INTERFACE': 'var(--color-interface)',
-        'ENUM': 'var(--color-enum)',
-        'ANNOTATION': 'var(--color-annotation)',
-        'BROADCAST': 'var(--color-broadcast)'
+        'CLASS': 'var(--color-class)', 'DATA': 'var(--color-data)',
+        'INTERFACE': 'var(--color-interface)', 'ENUM': 'var(--color-enum)',
+        'ANNOTATION': 'var(--color-annotation)', 'BROADCAST': 'var(--color-broadcast)'
       };
       typeBadge.style.backgroundColor = colors[node.type] || 'var(--color-class)';
       typeBadge.style.color = '#11121d';
 
-      // Load Interfaces
+      // Interfaces
       const ifContainer = document.getElementById('det-interfaces-container');
       const ifList = document.getElementById('det-interfaces');
       ifList.innerHTML = '';
@@ -684,12 +831,12 @@ $edgesJson
         ifContainer.style.display = 'none';
       }
 
-      // Outgoing Dependencies
+      // Outgoing
       const depList = document.getElementById('det-dependencies');
       depList.innerHTML = '';
-      const outgoingEdges = rawEdges.filter(e => e.from === nodeId);
-      if (outgoingEdges.length > 0) {
-        outgoingEdges.forEach(e => {
+      const outgoing = rawEdges.filter(e => e.from === nodeId);
+      if (outgoing.length > 0) {
+        outgoing.forEach(e => {
           const li = document.createElement('li');
           li.innerText = e.to.split('.').pop() + ' (' + e.to + ')';
           li.style.cursor = 'pointer';
@@ -703,12 +850,12 @@ $edgesJson
         depList.appendChild(li);
       }
 
-      // Incoming Dependencies
+      // Incoming
       const incList = document.getElementById('det-incoming');
       incList.innerHTML = '';
-      const incomingEdges = rawEdges.filter(e => e.to === nodeId);
-      if (incomingEdges.length > 0) {
-        incomingEdges.forEach(e => {
+      const incoming = rawEdges.filter(e => e.to === nodeId);
+      if (incoming.length > 0) {
+        incoming.forEach(e => {
           const li = document.createElement('li');
           li.innerText = e.from.split('.').pop() + ' (' + e.from + ')';
           li.style.cursor = 'pointer';
@@ -722,7 +869,6 @@ $edgesJson
         incList.appendChild(li);
       }
 
-      // Highlight connections in visualizer
       highlightNodeNetwork(nodeId);
     }
 
@@ -733,46 +879,57 @@ $edgesJson
       resetFocus();
     }
 
+    // ─── Highlight ───────────────────────────────────────────────
     function highlightNodeNetwork(nodeId) {
-      // Find connected nodes
       const connectedNodeIds = new Set();
       connectedNodeIds.add(nodeId);
 
-      const connectedEdges = [];
       const allEdges = edgesDataset.get();
-
       allEdges.forEach(edge => {
-        if (edge.from === nodeId) {
-          connectedNodeIds.add(edge.to);
-          connectedEdges.push(edge.id);
-        } else if (edge.to === nodeId) {
-          connectedNodeIds.add(edge.from);
-          connectedEdges.push(edge.id);
-        }
+        if (edge.hidden) return; // skip anchor springs
+        if (edge.from === nodeId) connectedNodeIds.add(edge.to);
+        else if (edge.to === nodeId) connectedNodeIds.add(edge.from);
       });
 
-      // Highlight nodes & dim others
+      // Dim non-connected class nodes, leave anchors alone
       const allNodes = nodesDataset.get();
-      const updatedNodes = allNodes.map(node => {
-        const theme = typeThemes[node.type] || typeThemes['CLASS'];
+      const updatedNodes = allNodes.filter(n => !n.isAnchor).map(node => {
+        const pkg = node.packageName || '<default>';
+        const pkgColor = packageColorMap[pkg] || '#89b4fa';
         const isConnected = connectedNodeIds.has(node.id);
-        
+
+        let bg = '#1e1e2e';
+        if (node.type === 'DATA')       bg = '#1e2821';
+        else if (node.type === 'INTERFACE')  bg = '#251e2a';
+        else if (node.type === 'ENUM')       bg = '#28221c';
+        else if (node.type === 'ANNOTATION') bg = '#2a1e20';
+        else if (node.type === 'BROADCAST')  bg = '#28251b';
+
         return {
           id: node.id,
-          color: {
-            border: theme.color.border,
-            background: theme.color.background,
-            opacity: isConnected ? 1.0 : 0.15
-          },
-          font: {
-            color: isConnected ? '#cdd6f4' : 'rgba(205, 214, 244, 0.15)'
-          }
+          color: { border: pkgColor, background: bg, opacity: isConnected ? 1.0 : 0.15 },
+          font: { color: isConnected ? '#cdd6f4' : 'rgba(205, 214, 244, 0.15)' }
         };
       });
-      nodesDataset.update(updatedNodes);
 
-      // Highlight edges & dim others
-      const updatedEdges = allEdges.map(edge => {
+      // Dim anchor labels for packages that have no connected node
+      const connectedPkgs = new Set();
+      allNodes.filter(n => !n.isAnchor && connectedNodeIds.has(n.id)).forEach(n => {
+        connectedPkgs.add(n.packageName || '<default>');
+      });
+      const updatedAnchors = allNodes.filter(n => n.isAnchor).map(anchor => {
+        const pkg = anchor.id.replace(ANCHOR_PREFIX, '');
+        const isRelevant = connectedPkgs.has(pkg);
+        return {
+          id: anchor.id,
+          opacity: isRelevant ? 0.3 : 0.05
+        };
+      });
+
+      nodesDataset.update(updatedNodes.concat(updatedAnchors));
+
+      // Dim non-connected visible edges
+      const updatedEdges = allEdges.filter(e => !e.hidden).map(edge => {
         const isConnected = edge.from === nodeId || edge.to === nodeId;
         return {
           id: edge.id,
@@ -785,32 +942,45 @@ $edgesJson
       edgesDataset.update(updatedEdges);
     }
 
+    // ─── Reset Focus ─────────────────────────────────────────────
     function resetFocus() {
       const allNodes = nodesDataset.get();
-      const updatedNodes = allNodes.map(node => {
-        const theme = typeThemes[node.type] || typeThemes['CLASS'];
+
+      // Restore class nodes
+      const updatedNodes = allNodes.filter(n => !n.isAnchor).map(node => {
+        const pkg = node.packageName || '<default>';
+        const pkgColor = packageColorMap[pkg] || '#89b4fa';
+
+        let bg = '#1e1e2e';
+        if (node.type === 'DATA')       bg = '#1e2821';
+        else if (node.type === 'INTERFACE')  bg = '#251e2a';
+        else if (node.type === 'ENUM')       bg = '#28221c';
+        else if (node.type === 'ANNOTATION') bg = '#2a1e20';
+        else if (node.type === 'BROADCAST')  bg = '#28251b';
+
         return {
           id: node.id,
-          color: theme.color,
+          color: { border: pkgColor, background: bg, highlight: { border: '#b4befe', background: '#313244' } },
           font: { color: '#cdd6f4' }
         };
       });
-      nodesDataset.update(updatedNodes);
 
+      // Restore anchors
+      const updatedAnchors = allNodes.filter(n => n.isAnchor).map(anchor => ({
+        id: anchor.id,
+        opacity: 0.2
+      }));
+
+      nodesDataset.update(updatedNodes.concat(updatedAnchors));
+
+      // Restore edges
       const allEdges = edgesDataset.get();
-      const updatedEdges = allEdges.map(edge => {
-        return {
-          id: edge.id,
-          color: {
-            color: '#585b70',
-            highlight: '#cba6f7',
-            hover: '#a6adc8',
-            opacity: 0.8
-          }
-        };
-      });
+      const updatedEdges = allEdges.filter(e => !e.hidden).map(edge => ({
+        id: edge.id,
+        color: { color: '#585b70', highlight: '#cba6f7', hover: '#a6adc8', opacity: 0.8 }
+      }));
       edgesDataset.update(updatedEdges);
-      
+
       if (selectedNodeId) {
         network.selectNodes([selectedNodeId]);
         highlightNodeNetwork(selectedNodeId);
