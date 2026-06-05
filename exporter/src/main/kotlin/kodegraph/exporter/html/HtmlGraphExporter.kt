@@ -566,7 +566,7 @@ $edgesJson
         edges: {
           arrows: { to: { enabled: true, scaleFactor: 0.8 } },
           smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.3 },
-          color: { color: '#585b70', highlight: '#cba6f7', hover: '#a6adc8', opacity: 0.8 },
+          color: { color: 'rgba(88, 91, 112, 0.75)', highlight: '#cba6f7', hover: '#a6adc8' },
           width: 1.5
         },
         physics: {
