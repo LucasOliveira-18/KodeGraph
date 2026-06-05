@@ -29,11 +29,16 @@ fun main(args: Array<String>) {
     try {
         println("Scanning Kotlin sources in: ${sourceRoot.absolutePath}")
 
-        KodeGraph
-            .analyze(sourceRoot)
-            .exportPlantUml(outputFile)
+        val result = KodeGraph.analyze(sourceRoot)
 
-        println("PlantUML written to: ${outputFile.absolutePath}")
+        if (outputFile.extension.lowercase() == "html") {
+            result.exportHtml(outputFile)
+            println("Interactive HTML written to: ${outputFile.absolutePath}")
+        } else {
+            result.exportPlantUml(outputFile)
+            println("PlantUML written to: ${outputFile.absolutePath}")
+        }
+
         println("Done in ${System.currentTimeMillis() - start} ms")
     } catch (e: Exception) {
         println("Error during analysis:")
