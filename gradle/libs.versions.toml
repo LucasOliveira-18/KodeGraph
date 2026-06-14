@@ -1,6 +1,7 @@
 [versions]
 kotlin = "2.2.0"
 shadow = "8.1.1"
+node = "7.1.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -9,4 +10,5 @@ kotlin-compiler-embeddable = { module = "org.jetbrains.kotlin:kotlin-compiler-em
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 shadow = { id = "com.github.johnrengelman.shadow", version.ref = "shadow" }
+node = { id = "com.github.node-gradle.node", version.ref = "node" }
 

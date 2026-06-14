@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "commonjs",
+    "outDir": "build/typescript-out/kodegraph/exporter/html",
+    "rootDir": "src/main/resources/kodegraph/exporter/html",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/main/resources/kodegraph/exporter/html/**/*.ts"]
+}

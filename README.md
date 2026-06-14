@@ -1,6 +1,6 @@
 # KodeGraph
 
-**KodeGraph** is a static analysis CLI tool for Kotlin projects. It scans Kotlin source files, builds a dependency graph of your classes, and exports it as a [PlantUML](https://plantuml.com/) diagram — giving you a visual map of your codebase's architecture.
+**KodeGraph** is a static analysis CLI tool for Kotlin projects. It scans Kotlin source files, builds a dependency graph of your classes, and exports it as either a [PlantUML](https://plantuml.com/) diagram or an interactive HTML visualizer — giving you a visual map of your codebase's architecture.
 
 ---
 
@@ -15,6 +15,7 @@
     - Delegated properties (e.g. `by inject<T>()`, `by viewModels<T>()`)
 - 🔁 **Tracks interface implementations**
 - 📊 **Exports to PlantUML** (`.puml`) — ready to render as SVG, PNG, etc.
+- 🌐 **Exports to Interactive HTML** (`.html`) — a self-contained web app visualizing dependencies with full search, type filtering, package coloring, and detailed inspector panel
 - 📦 **Distributed as a self-contained fat JAR**
 
 ---
@@ -25,7 +26,7 @@ KodeGraph is a multi-module Gradle project:
 
 - **`model/`** — Data model: `KGraph`, `KGClass`, `KGClassType`, `KGDependency`
 - **`engine/`** — Kotlin PSI scanner (`kotlin-compiler-embeddable`)
-- **`exporter/`** — Export interfaces + PlantUML implementation
+- **`exporter/`** — Export interfaces + PlantUML and Interactive HTML implementations (with automated TypeScript build toolchain)
 - **`core/`** — Main entry point (`KodeGraph`, `AnalysisResult`)
 - **`cli/`** — Command-line interface (fat JAR via Shadow plugin)
 
@@ -35,7 +36,7 @@ KodeGraph is a multi-module Gradle project:
 |------------|----------------|
 | `model`    | Plain data classes representing the graph (nodes and edges) |
 | `engine`   | Walks `.kt` files, parses them using Kotlin PSI, and builds a `KGraph` |
-| `exporter` | `GraphExporter` interface + `PlantUmlExporter` implementation |
+| `exporter` | `GraphExporter` interface + `PlantUmlExporter` and `HtmlGraphExporter` implementations (with automated TypeScript build toolchain) |
 | `core`     | `KodeGraph.analyze(sourceRoot)` facade returning an `AnalysisResult` |
 | `cli`      | `main()` entry point; packages everything into a runnable fat JAR |
 
@@ -52,7 +53,7 @@ java -jar kodeGraph-cli-alpha-0.1.0.jar <source-root> [output-file]
 | Argument       | Description                                                   |
 |----------------|---------------------------------------------------------------|
 | `source-root`  | Path to the root directory containing your Kotlin sources     |
-| `output-file`  | *(Optional)* Output `.puml` file path. Defaults to `dependency-graph.puml` |
+| `output-file`  | *(Optional)* Output file path. If it ends in `.html`, outputs an interactive web-based diagram. Defaults to `dependency-graph.puml` |
 
 **Example:**
 
@@ -116,6 +117,8 @@ cli/build/libs/kodeGraph-cli-alpha-0.1.0.jar
 | `kotlin-compiler-embeddable`      | 1.9.22    | PSI-based source parsing         |
 | Shadow (Gradle plugin)            | 8.1.1     | Fat JAR packaging                |
 | PlantUML                          | —         | Diagram output format            |
+| Node.js / npm (Gradle plugin)     | 7.1.0     | Sandboxed TypeScript compilation  |
+| TypeScript                        | 5.3.3     | Visualizer script source         |
 
 ---
 
