@@ -63,6 +63,16 @@ const typeThemes: Record<string, any> = {
   'BROADCAST':  { color: { border: '#f9e2af', background: '#1e1e2e', highlight: { border: '#b4befe', background: '#313244' } } }
 };
 
+const TYPE_COLORS: Record<string, string> = {
+  'CLASS': 'var(--color-class)', 'DATA': 'var(--color-data)',
+  'INTERFACE': 'var(--color-interface)', 'ENUM': 'var(--color-enum)',
+  'ANNOTATION': 'var(--color-annotation)', 'BROADCAST': 'var(--color-broadcast)'
+};
+
+const TYPE_CHARS: Record<string, string> = {
+  'CLASS': 'C', 'DATA': 'D', 'INTERFACE': 'I', 'ENUM': 'E', 'ANNOTATION': 'A', 'BROADCAST': 'B'
+};
+
 // ─── State ───────────────────────────────────────────────────
 let nodesDataset: any;
 let edgesDataset: any;
@@ -80,10 +90,221 @@ function isAnchor(id: any): boolean {
   return typeof id === 'string' && id.startsWith(ANCHOR_PREFIX);
 }
 
+// ─── Package Tree Structure ──────────────────────────────────
+interface TreeItem {
+  name: string;
+  fullName: string;
+  isPackage: boolean;
+  classType?: string;
+  children: TreeItem[];
+}
+
+let expandedPackages = new Set<string>();
+
+function buildTree(nodes: RawNode[]): TreeItem[] {
+  const rootMap: Record<string, any> = {};
+
+  nodes.forEach(node => {
+    const pkg = node.packageName || '';
+    const parts = pkg ? pkg.split('.') : [];
+    
+    let currentMap = rootMap;
+    let currentPath = '';
+
+    parts.forEach(part => {
+      currentPath = currentPath ? `${currentPath}.${part}` : part;
+      if (!currentMap[part]) {
+        currentMap[part] = {
+          _meta: { name: part, fullName: currentPath, isPackage: true },
+          _children: {}
+        };
+      }
+      currentMap = currentMap[part]._children;
+    });
+
+    currentMap[node.label] = {
+      _meta: { name: node.label, fullName: node.id, isPackage: false, classType: node.type },
+      _children: null
+    };
+  });
+
+  function convert(map: Record<string, any> | null): TreeItem[] {
+    if (!map) return [];
+    return Object.keys(map).map(key => {
+      const entry = map[key];
+      return {
+        name: entry._meta.name,
+        fullName: entry._meta.fullName,
+        isPackage: entry._meta.isPackage,
+        classType: entry._meta.classType,
+        children: convert(entry._children)
+      };
+    }).sort((a, b) => {
+      if (a.isPackage && !b.isPackage) return -1;
+      if (!a.isPackage && b.isPackage) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  return convert(rootMap);
+}
+
+function toggleFolder(folderPath: string, rowEl: HTMLElement, childrenEl: HTMLElement) {
+  const isCollapsed = childrenEl.classList.toggle('collapsed');
+  const chevron = rowEl.querySelector('.tree-chevron');
+  if (chevron) {
+    chevron.classList.toggle('collapsed', isCollapsed);
+  }
+  if (isCollapsed) {
+    expandedPackages.delete(folderPath);
+  } else {
+    expandedPackages.add(folderPath);
+  }
+}
+
+function renderTreeItem(item: TreeItem, container: HTMLElement) {
+  const nodeEl = document.createElement('div');
+  nodeEl.className = 'tree-node';
+
+  const rowEl = document.createElement('div');
+  rowEl.className = 'tree-row';
+  rowEl.setAttribute('data-id', item.fullName);
+
+  if (item.isPackage) {
+    const chevronEl = document.createElement('div');
+    chevronEl.className = 'tree-chevron';
+    const isCollapsed = !expandedPackages.has(item.fullName);
+    if (isCollapsed) {
+      chevronEl.classList.add('collapsed');
+    }
+    chevronEl.innerHTML = `
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    `;
+    rowEl.appendChild(chevronEl);
+
+    const iconEl = document.createElement('div');
+    iconEl.className = 'tree-icon';
+    const pkgColor = packageColorMap[item.fullName] || 'var(--primary)';
+    iconEl.innerHTML = `
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: ${pkgColor};">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+      </svg>
+    `;
+    rowEl.appendChild(iconEl);
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'tree-label';
+    labelEl.innerText = item.name;
+    rowEl.appendChild(labelEl);
+
+    nodeEl.appendChild(rowEl);
+
+    const childrenEl = document.createElement('div');
+    childrenEl.className = 'tree-children';
+    if (isCollapsed) {
+      childrenEl.classList.add('collapsed');
+    }
+    item.children.forEach(child => renderTreeItem(child, childrenEl));
+    nodeEl.appendChild(childrenEl);
+
+    rowEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFolder(item.fullName, rowEl, childrenEl);
+    });
+
+  } else {
+    const spacer = document.createElement('div');
+    spacer.className = 'tree-chevron-empty';
+    rowEl.appendChild(spacer);
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'type-mini-badge';
+    const cType = item.classType || 'CLASS';
+    const color = TYPE_COLORS[cType] || 'var(--color-class)';
+    iconEl.style.border = `1px solid ${color}`;
+    iconEl.style.color = color;
+    iconEl.innerText = TYPE_CHARS[cType] || 'C';
+    rowEl.appendChild(iconEl);
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'tree-label';
+    labelEl.innerText = item.name;
+    rowEl.appendChild(labelEl);
+
+    nodeEl.appendChild(rowEl);
+
+    if (selectedNodeId === item.fullName) {
+      rowEl.classList.add('selected');
+    }
+
+    rowEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectNode(item.fullName);
+      if (network) {
+        network.selectNodes([item.fullName]);
+        network.focus(item.fullName, { animation: true });
+      }
+    });
+  }
+
+  container.appendChild(nodeEl);
+}
+
+function syncTreeSelection(selectedId: string | null) {
+  document.querySelectorAll('.tree-row.selected').forEach(el => el.classList.remove('selected'));
+
+  if (!selectedId) return;
+
+  const selectedRow = document.querySelector(`.tree-row[data-id="${CSS.escape(selectedId)}"]`) as HTMLElement | null;
+  if (selectedRow) {
+    selectedRow.classList.add('selected');
+
+    let parent = selectedRow.parentElement;
+    while (parent) {
+      const childrenContainer = parent.querySelector(':scope > .tree-children') as HTMLElement | null;
+      const row = parent.querySelector(':scope > .tree-row') as HTMLElement | null;
+      if (childrenContainer && row && childrenContainer.classList.contains('collapsed')) {
+        const pkgPath = row.getAttribute('data-id');
+        if (pkgPath) {
+          expandedPackages.add(pkgPath);
+          childrenContainer.classList.remove('collapsed');
+          const chevron = row.querySelector('.tree-chevron');
+          if (chevron) {
+            chevron.classList.remove('collapsed');
+          }
+        }
+      }
+      parent = parent.parentElement ? parent.parentElement.closest('.tree-node') : null;
+    }
+
+    const container = document.getElementById('package-tree-container');
+    if (container) {
+      const containerRect = container.getBoundingClientRect();
+      const rowRect = selectedRow.getBoundingClientRect();
+      if (rowRect.top < containerRect.top || rowRect.bottom > containerRect.bottom) {
+        selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }
+}
+
 // ─── Init ────────────────────────────────────────────────────
 function init() {
   nodesDataset = new vis.DataSet();
   edgesDataset = new vis.DataSet();
+
+  // Expand all packages by default initially
+  uniquePackages.forEach(pkg => {
+    expandedPackages.add(pkg);
+    const parts = pkg.split('.');
+    let path = '';
+    parts.forEach(part => {
+      path = path ? `${path}.${part}` : part;
+      expandedPackages.add(path);
+    });
+  });
 
   renderPackageLegend();
   renderData();
@@ -333,6 +554,27 @@ function renderData() {
   if (selectedNodeId && !filteredIds.has(selectedNodeId)) {
     deselectNode();
   }
+
+  // Render package structure tree
+  const treeContainer = document.getElementById('package-tree-container');
+  if (treeContainer) {
+    treeContainer.innerHTML = '';
+    const treeData = buildTree(filteredNodes);
+    if (treeData.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.style.fontSize = '12px';
+      emptyMsg.style.color = 'var(--text-muted)';
+      emptyMsg.style.fontStyle = 'italic';
+      emptyMsg.style.padding = '8px';
+      emptyMsg.innerText = 'No matches found';
+      treeContainer.appendChild(emptyMsg);
+    } else {
+      treeData.forEach(item => renderTreeItem(item, treeContainer));
+    }
+  }
+
+  // Sync tree selection
+  syncTreeSelection(selectedNodeId);
 }
 
 // ─── Select Node ─────────────────────────────────────────────
@@ -357,12 +599,7 @@ function selectNode(nodeId: string) {
   const typeBadge = document.getElementById('det-type');
   if (typeBadge) {
     typeBadge.innerText = node.type.replace('_', ' ');
-    const colors: Record<string, string> = {
-      'CLASS': 'var(--color-class)', 'DATA': 'var(--color-data)',
-      'INTERFACE': 'var(--color-interface)', 'ENUM': 'var(--color-enum)',
-      'ANNOTATION': 'var(--color-annotation)', 'BROADCAST': 'var(--color-broadcast)'
-    };
-    typeBadge.style.backgroundColor = colors[node.type] || 'var(--color-class)';
+    typeBadge.style.backgroundColor = TYPE_COLORS[node.type] || 'var(--color-class)';
     typeBadge.style.color = '#11121d';
   }
 
@@ -426,6 +663,7 @@ function selectNode(nodeId: string) {
   }
 
   highlightNodeNetwork(nodeId);
+  syncTreeSelection(nodeId);
 }
 
 function deselectNode() {
@@ -437,6 +675,7 @@ function deselectNode() {
   if (card) card.style.display = 'none';
 
   resetFocus();
+  syncTreeSelection(null);
 }
 
 // ─── Highlight ───────────────────────────────────────────────

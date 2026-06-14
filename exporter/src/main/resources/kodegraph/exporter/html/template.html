@@ -314,6 +314,111 @@
     ::-webkit-scrollbar-thumb:hover {
       background: var(--text-muted);
     }
+
+    /* Package Tree Explorer */
+    .package-tree-container {
+      display: flex;
+      flex-direction: column;
+      max-height: 280px;
+      overflow-y: auto;
+      background-color: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px;
+      padding-right: 4px;
+      gap: 2px;
+    }
+
+    .tree-node {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tree-row {
+      display: flex;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .tree-row:hover {
+      background-color: var(--bg-surface-hover);
+    }
+
+    .tree-row.selected {
+      background-color: rgba(203, 166, 247, 0.15);
+      color: var(--primary);
+      font-weight: 500;
+      border-left: 2px solid var(--primary);
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+
+    .tree-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+
+    .tree-chevron.collapsed {
+      transform: rotate(-90deg);
+    }
+
+    .tree-chevron-empty {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .tree-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .tree-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-children {
+      display: flex;
+      flex-direction: column;
+      padding-left: 12px;
+      border-left: 1px dashed var(--border-color);
+      margin-left: 14px;
+      gap: 2px;
+    }
+
+    .tree-children.collapsed {
+      display: none;
+    }
+
+    .tree-row .type-mini-badge {
+      font-size: 9px;
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--bg-dark);
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -368,6 +473,14 @@
             <span class="type-mini-badge" style="border: 1px solid var(--color-broadcast); color: var(--color-broadcast)">B</span>
             Broadcast Receiver
           </label>
+        </div>
+      </div>
+
+      <!-- Package Structure Explorer -->
+      <div>
+        <div class="section-title">Package Structure</div>
+        <div id="package-tree-container" class="package-tree-container">
+          <!-- Dynamically generated tree view -->
         </div>
       </div>
 
