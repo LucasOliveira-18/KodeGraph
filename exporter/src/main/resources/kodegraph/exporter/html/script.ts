@@ -353,6 +353,7 @@ function init() {
       const clicked = params.nodes[0];
       if (isAnchor(clicked)) return; // ignore anchor clicks
       selectNode(clicked);
+      network.focus(clicked, {animation: true});
     } else {
       deselectNode();
     }
