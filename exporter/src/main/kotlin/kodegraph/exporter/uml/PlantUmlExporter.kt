@@ -23,7 +23,7 @@ class PlantUmlExporter : GraphExporter {
             .filter { !it.isInterfaceType() }
             .forEach { clazz ->
                 clazz.implementedInterfaces.forEach { iface ->
-                    resolve(iface, clazz.packageName, byFqName, bySimpleName)
+                    resolve(iface, clazz.packageName, clazz.imports, byFqName, bySimpleName)
                         ?.takeIf { it.isInterfaceType() }
                         ?.let { target ->
                             interfaceImpls
@@ -82,7 +82,7 @@ class PlantUmlExporter : GraphExporter {
 
                 clazz.implementedInterfaces.forEach { iface ->
 
-                    resolve(iface, clazz.packageName, byFqName, bySimpleName)
+                    resolve(iface, clazz.packageName, clazz.imports, byFqName, bySimpleName)
                         ?.takeIf { it.isInterfaceType() }
                         ?.let { target ->
 
@@ -101,7 +101,7 @@ class PlantUmlExporter : GraphExporter {
         // Constructor dependencies
         classes.forEach { clazz ->
             clazz.dependencies.forEach { dep ->
-                resolve(dep.type, clazz.packageName, byFqName, bySimpleName)
+                resolve(dep.type, clazz.packageName, clazz.imports, byFqName, bySimpleName)
                     ?.let { target ->
                         sb.appendLine(
                             "${sanitize(clazz.simpleName)} --> ${sanitize(target.simpleName)}"
@@ -117,16 +117,24 @@ class PlantUmlExporter : GraphExporter {
     private fun resolve(
         typeName: String,
         currentPackage: String,
+        imports: Map<String, String>,
         byFqName: Map<String, KGClass>,
         bySimpleName: Map<String, List<KGClass>>
     ): KGClass? {
+        // 1. Import map (explicit and star-resolved imports)
+        imports[typeName]?.let { importFq ->
+            byFqName[importFq]?.let { return it }
+        }
 
+        // 2. Exact FQ name match
         byFqName[typeName]?.let { return it }
 
+        // 3. Same-package guess
         if (currentPackage.isNotEmpty()) {
             byFqName["$currentPackage.$typeName"]?.let { return it }
         }
 
+        // 4. Simple name fallback
         return bySimpleName[typeName]?.firstOrNull()
     }
 

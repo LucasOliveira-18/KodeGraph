@@ -24,25 +24,34 @@ class HtmlGraphExporter : GraphExporter {
         }
 
         val jsonEdges = mutableListOf<String>()
+        val seenEdgePairs = mutableSetOf<Pair<String, String>>()
         classes.forEach { clazz ->
             // Interfaces implemented
             clazz.implementedInterfaces.forEach { iface ->
-                resolve(iface, clazz.packageName, byFqName, bySimpleName)?.let { target ->
-                    jsonEdges.add(
-                        """      { "from": "${escapeJson(clazz.fqName)}", "to": "${escapeJson(target.fqName)}", "label": "implements", "type": "implements" }"""
-                    )
+                resolve(iface, clazz.packageName, clazz.imports, byFqName, bySimpleName)?.let { target ->
+                    val from = clazz.fqName
+                    val to = target.fqName
+                    if (seenEdgePairs.add(Pair(from, to))) {
+                        jsonEdges.add(
+                            """      { "id": "${escapeJson(from)}->${escapeJson(to)}", "from": "${escapeJson(from)}", "to": "${escapeJson(to)}", "label": "implements", "type": "implements" }"""
+                        )
+                    }
                 }
             }
             // Outgoing class dependencies
             clazz.dependencies.forEach { dep ->
-                resolve(dep.type, clazz.packageName, byFqName, bySimpleName)?.let { target ->
-                    jsonEdges.add(
-                        """      { "from": "${escapeJson(clazz.fqName)}", "to": "${escapeJson(target.fqName)}", "label": "depends", "type": "depends" }"""
-                    )
+                resolve(dep.type, clazz.packageName, clazz.imports, byFqName, bySimpleName)?.let { target ->
+                    val from = clazz.fqName
+                    val to = target.fqName
+                    if (seenEdgePairs.add(Pair(from, to))) {
+                        jsonEdges.add(
+                            """      { "id": "${escapeJson(from)}->${escapeJson(to)}", "from": "${escapeJson(from)}", "to": "${escapeJson(to)}", "label": "depends", "type": "depends" }"""
+                        )
+                    }
                 }
             }
         }
-        val jsonEdgesStr = jsonEdges.distinct().joinToString(separator = ",\n")
+        val jsonEdgesStr = jsonEdges.joinToString(separator = ",\n")
 
         return getHtmlTemplate(jsonNodes, jsonEdgesStr)
     }
@@ -50,13 +59,24 @@ class HtmlGraphExporter : GraphExporter {
     private fun resolve(
         typeName: String,
         currentPackage: String,
+        imports: Map<String, String>,
         byFqName: Map<String, KGClass>,
         bySimpleName: Map<String, List<KGClass>>
     ): KGClass? {
+        // 1. Import map (explicit and star-resolved imports)
+        imports[typeName]?.let { importFq ->
+            byFqName[importFq]?.let { return it }
+        }
+
+        // 2. Exact FQ name match
         byFqName[typeName]?.let { return it }
+
+        // 3. Same-package guess
         if (currentPackage.isNotEmpty()) {
             byFqName["$currentPackage.$typeName"]?.let { return it }
         }
+
+        // 4. Simple name fallback
         return bySimpleName[typeName]?.firstOrNull()
     }
 

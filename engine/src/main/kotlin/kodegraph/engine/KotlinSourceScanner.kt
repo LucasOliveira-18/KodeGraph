@@ -12,7 +12,12 @@ import org.jetbrains.kotlin.psi.KtSuperTypeCallEntry
 import java.io.File
 
 class KotlinSourceScanner {
-//TODO : parse imports from files
+
+    private data class FileParseResult(
+        val classes: List<KGClass>,
+        val starImportPackages: List<String>
+    )
+
     fun scan(sourceRoots: List<File>): KGraph {
         return KotlinEnvironmentFactory.create().use { managed ->
             val psiFactory = KtPsiFactory(managed.coreEnvironment.project, false)
@@ -25,19 +30,101 @@ class KotlinSourceScanner {
                     .toList()
             }
 
-            val classes = ktFiles.flatMap { file ->
+            // First pass: parse all files, collecting classes and star-import data
+            val fileResults = ktFiles.map { file ->
                 parseFile(file, psiFactory)
             }
+            val allClasses = fileResults.flatMap { it.classes }
 
-            KGraph(classes)
+            // Second pass: resolve star imports and add import-based dependencies
+            val projectFqNames = allClasses.map { it.fqName }.toSet()
+            val resolvedClasses = fileResults.flatMap { result ->
+                result.classes.map { clazz ->
+                    var enriched = clazz
+
+                    // Resolve star imports
+                    if (result.starImportPackages.isNotEmpty()) {
+                        val starResolved = resolveStarImports(result.starImportPackages, allClasses)
+                        if (starResolved.isNotEmpty()) {
+                            enriched = enriched.copy(imports = enriched.imports + starResolved)
+                        }
+                    }
+
+                    // Add import-based dependencies: any imported project class becomes a dependency
+                    val importDeps = enriched.imports.values
+                        .filter { it in projectFqNames && it != enriched.fqName }
+                        .map { KGDependency(it) }
+                        .toSet()
+                    // Deduplicate: existing deps use short names; also check short form of import FQ names
+                    val existingDepTypes = enriched.dependencies.map { it.type }.toSet()
+                    val existingShortNames = existingDepTypes.map { it.substringAfterLast(".") }.toSet()
+                    val newDeps = importDeps.filter { dep ->
+                        dep.type !in existingDepTypes &&
+                        dep.type.substringAfterLast(".") !in existingShortNames
+                    }
+                    if (newDeps.isNotEmpty()) {
+                        enriched = enriched.copy(dependencies = enriched.dependencies + newDeps)
+                    }
+
+                    enriched
+                }
+            }
+
+            KGraph(resolvedClasses)
         }
     }
 
-    private fun parseFile(file: File, psiFactory: KtPsiFactory): List<KGClass> {
+    /**
+     * Resolves star imports (e.g. `import com.example.data.*`) against the known class set.
+     * Maps every class whose package matches a star-imported package from simpleName → fqName.
+     */
+    private fun resolveStarImports(
+        starImportPackages: List<String>,
+        allClasses: List<KGClass>
+    ): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        starImportPackages.forEach { pkg ->
+            allClasses
+                .filter { it.packageName == pkg }
+                .forEach { clazz ->
+                    result[clazz.simpleName] = clazz.fqName
+                }
+        }
+        return result
+    }
+
+    private fun parseFile(file: File, psiFactory: KtPsiFactory): FileParseResult {
         val ktFile = psiFactory.createFile(file.readText())
         val packageName = ktFile.packageFqName.asString()
 
-        return ktFile.declarations
+        // Parse imports: explicit (shortName → fqName) and star imports (package names)
+        val explicitImports = mutableMapOf<String, String>()
+        val starImportPackages = mutableListOf<String>()
+
+        ktFile.importDirectives.forEach { directive ->
+            val fqName = directive.importedFqName
+            if (directive.isAllUnder) {
+                // Star import: `import com.example.data.*`
+                fqName?.asString()?.let { starImportPackages.add(it) }
+            } else {
+                // Explicit import: `import com.example.data.User`
+                val fq = fqName?.asString()
+                if (fq != null) {
+                    val shortName = fq.substringAfterLast(".")
+                    val alias = directive.aliasName
+                    if (alias != null) {
+                        explicitImports[alias] = fq
+                    } else {
+                        // Only add if not already present (first import wins)
+                        if (shortName !in explicitImports) {
+                            explicitImports[shortName] = fq
+                        }
+                    }
+                }
+            }
+        }
+
+        val classes = ktFile.declarations
             .filterIsInstance<KtClass>()
             .mapNotNull { ktClass ->
 
@@ -130,9 +217,12 @@ class KotlinSourceScanner {
                     packageName = packageName,
                     type = type,
                     dependencies = mergedDependencies,
-                    implementedInterfaces = interfaces
+                    implementedInterfaces = interfaces,
+                    imports = explicitImports
                 )
             }
+
+        return FileParseResult(classes, starImportPackages)
     }
 
 

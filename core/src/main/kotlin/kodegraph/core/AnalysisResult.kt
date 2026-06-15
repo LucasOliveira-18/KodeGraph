@@ -1,7 +1,6 @@
 package kodegraph.core
 
-import kodegraph.exporter.html.HtmlGraphExporter
-import kodegraph.exporter.uml.PlantUmlExporter
+import kodegraph.exporter.GraphExporter
 import kodegraph.model.KGraph
 import java.io.File
 
@@ -9,15 +8,7 @@ class AnalysisResult internal constructor(
     private val graph: KGraph
 ) {
 
-    fun exportPlantUml(outputFile: File): File {
-        val exporter = PlantUmlExporter()
-        val content = exporter.export(graph)
-        outputFile.writeText(content)
-        return outputFile
-    }
-
-    fun exportHtml(outputFile: File): File {
-        val exporter = HtmlGraphExporter()
+    fun export(exporter: GraphExporter, outputFile: File): File {
         val content = exporter.export(graph)
         outputFile.writeText(content)
         return outputFile

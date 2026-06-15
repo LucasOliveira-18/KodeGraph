@@ -41,6 +41,10 @@ bin/
 ### Mac OS ###
 .DS_Store
 
+### Reasonix ###
+.reasonix/
+.codegraph/
+
 ### Node / npm ###
 node_modules/
 npm-debug.log*

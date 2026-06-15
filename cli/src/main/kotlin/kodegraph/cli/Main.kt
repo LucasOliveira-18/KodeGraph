@@ -1,6 +1,8 @@
 package kodegraph.cli
 
 import kodegraph.core.KodeGraph
+import kodegraph.exporter.html.HtmlGraphExporter
+import kodegraph.exporter.uml.PlantUmlExporter
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -31,11 +33,17 @@ fun main(args: Array<String>) {
 
         val result = KodeGraph.analyze(sourceRoot)
 
+        val exporter = if (outputFile.extension.lowercase() == "html") {
+            HtmlGraphExporter()
+        } else {
+            PlantUmlExporter()
+        }
+
+        result.export(exporter, outputFile)
+
         if (outputFile.extension.lowercase() == "html") {
-            result.exportHtml(outputFile)
             println("Interactive HTML written to: ${outputFile.absolutePath}")
         } else {
-            result.exportPlantUml(outputFile)
             println("PlantUML written to: ${outputFile.absolutePath}")
         }
 
